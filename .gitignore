@@ -1,0 +1,19 @@
+# Dependencias
+node_modules/
+vendor/
+.next/
+dist/
+
+# Rust / Soroban
+target/
+Cargo.lock
+
+# Seguridad (CRÍTICO)
+.env
+.env.local
+*.pem
+*.key
+
+# Cursor & IDEs
+.cursor/
+.vscode/
