@@ -1,0 +1,8 @@
+# Configuración de assets para Stellar Disbursement Platform
+# MXNe (Etherfuse) - stablecoin MXN en Stellar testnet
+# Referencia: https://docs.etherfuse.com
+assets:
+  - schema: stellar
+    code: MXNe
+    issuer: GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTU
+    significant_decimals: 2

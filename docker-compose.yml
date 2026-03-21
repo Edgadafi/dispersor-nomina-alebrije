@@ -1,0 +1,136 @@
+# Alebrije Nómina - Stellar Disbursement Platform (SDP) v2
+# Levanta SDP backend, TSS y PostgreSQL en red alebrije-net
+# Uso: docker compose up -d
+# Setup inicial: npm run setup (ejecuta scripts/setup-sdp.sh)
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ""
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: ${DATABASE_NAME:-sdp_mtn}
+      PGDATA: /data/postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-db:/data/postgres
+    networks:
+      - alebrije-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  sdp-backend:
+    image: stellar/stellar-disbursement-platform-backend:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${PORT:-8000}:8000"
+      - "${METRICS_PORT:-8002}:8002"
+      - "${ADMIN_PORT:-8003}:8003"
+    environment:
+      BASE_URL: ${BASE_URL:-http://localhost:8000}
+      SDP_UI_BASE_URL: ${SDP_UI_BASE_URL:-http://localhost:3000}
+      DATABASE_URL: postgres://postgres@postgres:5432/${DATABASE_NAME:-sdp_mtn}?sslmode=disable
+      ENVIRONMENT: ${ENVIRONMENT:-localhost}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      PORT: "8000"
+      METRICS_PORT: "8002"
+      HORIZON_URL: ${HORIZON_URL:-https://horizon-testnet.stellar.org}
+      RPC_URL: ${RPC_URL:-https://soroban-testnet.stellar.org}
+      NETWORK_PASSPHRASE: ${NETWORK_PASSPHRASE:-Test SDF Network ; September 2015}
+      # SEP-10 / SEP-24
+      SEP10_SIGNING_PUBLIC_KEY: ${SEP10_SIGNING_PUBLIC_KEY}
+      SEP10_SIGNING_PRIVATE_KEY: ${SEP10_SIGNING_PRIVATE_KEY}
+      SEP24_JWT_SECRET: ${SEP24_JWT_SECRET}
+      # EC256 para firma de JWTs (prod: definir en .env; dev: se carga desde config/ec256-dev.pem)
+      EC256_PRIVATE_KEY: ${EC256_PRIVATE_KEY:-}
+      # Distribution
+      DISTRIBUTION_PUBLIC_KEY: ${DISTRIBUTION_PUBLIC_KEY}
+      DISTRIBUTION_SEED: ${DISTRIBUTION_SEED}
+      DISTRIBUTION_ACCOUNT_ENCRYPTION_PASSPHRASE: ${DISTRIBUTION_ACCOUNT_ENCRYPTION_PASSPHRASE}
+      CHANNEL_ACCOUNT_ENCRYPTION_PASSPHRASE: ${CHANNEL_ACCOUNT_ENCRYPTION_PASSPHRASE}
+      # Hackathon / dev
+      DISABLE_MFA: ${DISABLE_MFA:-true}
+      DISABLE_RECAPTCHA: ${DISABLE_RECAPTCHA:-true}
+      RECAPTCHA_SITE_KEY: ${RECAPTCHA_SITE_KEY:-6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI}
+      RECAPTCHA_SITE_SECRET_KEY: ${RECAPTCHA_SITE_SECRET_KEY:-6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+      # Multi-tenant
+      ADMIN_PORT: "8003"
+      SINGLE_TENANT_MODE: ${SINGLE_TENANT_MODE:-false}
+      ADMIN_ACCOUNT: ${ADMIN_ACCOUNT:-SDP-admin}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-api_key_1234567890}
+      INSTANCE_NAME: ${INSTANCE_NAME:-Alebrije SDP}
+      EMAIL_SENDER_TYPE: ${EMAIL_SENDER_TYPE:-DRY_RUN}
+      SMS_SENDER_TYPE: ${SMS_SENDER_TYPE:-DRY_RUN}
+      # Scheduler (event broker)
+      SCHEDULER_RECEIVER_INVITATION_JOB_SECONDS: ${SCHEDULER_RECEIVER_INVITATION_JOB_SECONDS:-10}
+      SCHEDULER_PAYMENT_JOB_SECONDS: ${SCHEDULER_PAYMENT_JOB_SECONDS:-30}
+      # AWS SES (email)
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_SES_SENDER_ID: ${AWS_SES_SENDER_ID}
+      # Twilio (SMS OTP para SEP-24)
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_SERVICE_SID: ${TWILIO_SERVICE_SID}
+      # Scheduler — sin esto los pagos no se procesan
+      EVENT_BROKER_TYPE: ${EVENT_BROKER_TYPE:-SCHEDULER}
+    volumes:
+      - ./config/ec256-dev.pem:/config/ec256-dev.pem:ro
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        [ -z "$$EC256_PRIVATE_KEY" ] && export EC256_PRIVATE_KEY="$$(cat /config/ec256-dev.pem)"
+        sleep 5
+        ./stellar-disbursement-platform db admin migrate up
+        ./stellar-disbursement-platform db tss migrate up
+        ./stellar-disbursement-platform db auth migrate up --all
+        ./stellar-disbursement-platform db sdp migrate up --all
+        ./stellar-disbursement-platform db setup-for-network --all
+        exec ./stellar-disbursement-platform serve
+    networks:
+      - alebrije-net
+
+  sdp-tss:
+    image: stellar/stellar-disbursement-platform-backend:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      sdp-backend:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://postgres@postgres:5432/${DATABASE_NAME:-sdp_mtn}?sslmode=disable
+      HORIZON_URL: ${HORIZON_URL:-https://horizon-testnet.stellar.org}
+      RPC_URL: ${RPC_URL:-https://soroban-testnet.stellar.org}
+      NETWORK_PASSPHRASE: ${NETWORK_PASSPHRASE:-Test SDF Network ; September 2015}
+      DISTRIBUTION_PUBLIC_KEY: ${DISTRIBUTION_PUBLIC_KEY}
+      DISTRIBUTION_SEED: ${DISTRIBUTION_SEED}
+      DISTRIBUTION_ACCOUNT_ENCRYPTION_PASSPHRASE: ${DISTRIBUTION_ACCOUNT_ENCRYPTION_PASSPHRASE}
+      CHANNEL_ACCOUNT_ENCRYPTION_PASSPHRASE: ${CHANNEL_ACCOUNT_ENCRYPTION_PASSPHRASE}
+      NUM_CHANNEL_ACCOUNTS: ${NUM_CHANNEL_ACCOUNTS:-3}
+      MAX_BASE_FEE: ${MAX_BASE_FEE:-1000000}
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        echo "Esperando 45s para que sdp-backend complete migraciones..."
+        sleep 45
+        ./stellar-disbursement-platform channel-accounts ensure ${NUM_CHANNEL_ACCOUNTS:-3}
+        exec ./stellar-disbursement-platform tss
+    networks:
+      - alebrije-net
+
+networks:
+  alebrije-net:
+    driver: bridge
+
+volumes:
+  postgres-db:
+    driver: local
