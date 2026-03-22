@@ -26,7 +26,9 @@ function txExplorerUrl(txHash: string | null): string | null {
 }
 const CORS_ORIGINS = [
   "https://nomillar.vercel.app",
+  "https://nomina-",
   "http://localhost:3000",
+  "http://localhost:3002",
   "http://127.0.0.1:3000",
 ];
 
