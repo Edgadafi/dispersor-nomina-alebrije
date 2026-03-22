@@ -9,7 +9,14 @@
     "sdp:up": "docker compose up -d",
     "sdp:logs": "docker compose logs -f sdp-backend",
     "demo": "npx tsx scripts/demo.ts",
-    "demo:csv": "npx tsx scripts/demo.ts data/nomina-demo.csv"
+    "demo:csv": "npx tsx scripts/demo.ts data/nomina-demo.csv",
+    "register-asset": "npx tsx scripts/register-asset.ts",
+    "register-asset:curl": "bash scripts/register-asset-curl.sh",
+    "add-cetes-trustline": "npx tsx scripts/add-cetes-trustline.ts",
+    "add-usdc-trustline": "npx tsx scripts/add-usdc-trustline.ts",
+    "demo:direct": "npx tsx scripts/demo-direct-payment.ts",
+    "api": "npx tsx api/server.ts",
+    "api:dev": "npx tsx api/server.ts"
   },
   "keywords": [],
   "author": "",
