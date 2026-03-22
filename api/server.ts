@@ -14,8 +14,11 @@ import { config } from "dotenv";
 import { resolve } from "node:path";
 config({ path: resolve(process.cwd(), "alebrije-flow/.env") });
 import { dispersarDesdeCsv } from "../alebrije-flow/src/dispersar-direct";
+import { getBatch } from "../alebrije-flow/src/payroll-store";
+import { verifyCommitment } from "../alebrije-flow/src/commitment";
 
 const PORT = parseInt(process.env.API_PORT ?? "3001", 10);
+const AUDITOR_TOKEN = process.env.AUDITOR_TOKEN;
 const CORS_ORIGINS = [
   "https://nomillar.vercel.app",
   "http://localhost:3000",
@@ -70,20 +73,72 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, headers);
       res.end(
         JSON.stringify({
-          ok: true,
+          ok: result.ok,
+          batchId: result.batchId,
+          commitmentHash: result.commitmentHash,
           hash: result.hash,
+          txHash: result.txHash,
           total: result.total,
           asset: result.asset,
-          recipient: result.recipient,
           count: result.count,
         })
       );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      const code = msg.includes("ADMIN_SECRET_KEY") ? 503 : 400;
+      const code =
+        msg.includes("ADMIN_SECRET_KEY") || msg.includes("PAYROLL_STORE_KEY")
+          ? 503
+          : 400;
       res.writeHead(code, headers);
       res.end(JSON.stringify({ error: msg }));
     }
+    return;
+  }
+
+  const verifyMatch = url.pathname.match(/^\/api\/batch\/([^/]+)\/verify\/?$/);
+  const batchMatch = url.pathname.match(/^\/api\/batch\/([^/]+)\/?$/);
+  if (verifyMatch) {
+    const batchId = verifyMatch[1];
+    const batch = getBatch(batchId);
+    if (!batch) {
+      res.writeHead(404, headers);
+      res.end(JSON.stringify({ error: "Batch no encontrado" }));
+      return;
+    }
+    const verified = verifyCommitment(
+      Buffer.from(batch.commitmentHash, "hex"),
+      { rows: batch.rows, batchId }
+    );
+    res.writeHead(200, headers);
+    res.end(
+      JSON.stringify({
+        batchId,
+        commitmentHash: batch.commitmentHash,
+        txHash: batch.txHash,
+        verified,
+      })
+    );
+    return;
+  }
+  if (batchMatch) {
+    const batchId = batchMatch[1];
+    const auth =
+      req.headers.authorization?.replace(/^Bearer\s+/i, "") ??
+      req.headers["x-auditor-key"];
+    if (!AUDITOR_TOKEN || auth !== AUDITOR_TOKEN) {
+      res.writeHead(401, headers);
+      res.end(JSON.stringify({ error: "Autorización requerida (Bearer o X-Auditor-Key)" }));
+      return;
+    }
+
+    const batch = getBatch(batchId);
+    if (!batch) {
+      res.writeHead(404, headers);
+      res.end(JSON.stringify({ error: "Batch no encontrado" }));
+      return;
+    }
+    res.writeHead(200, headers);
+    res.end(JSON.stringify(batch));
     return;
   }
 
@@ -93,7 +148,9 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`\n📡 API dispersor: http://localhost:${PORT}`);
-  console.log(`   POST /api/dispersar  — dispersión desde CSV`);
-  console.log(`   GET  /health         — health check`);
+  console.log(`   POST /api/dispersar     — dispersión LFPDP`);
+  console.log(`   GET  /api/batch/:id     — datos batch (Bearer token)`);
+  console.log(`   GET  /api/batch/:id/verify — verificación commitment`);
+  console.log(`   GET  /health            — health check`);
   console.log(`   CORS: nomillar.vercel.app\n`);
 });

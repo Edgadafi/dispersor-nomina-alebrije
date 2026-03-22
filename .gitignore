@@ -13,6 +13,7 @@ Cargo.lock
 .env.local
 *.pem
 *.key
+data/payroll-store/
 
 # Cursor & IDEs
 .cursor/

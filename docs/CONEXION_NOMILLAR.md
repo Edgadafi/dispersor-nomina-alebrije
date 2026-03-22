@@ -1,5 +1,11 @@
 # Conectar dispersor con nomillar.vercel.app
 
+## Flujo LFPDP (privacidad)
+
+- **On-chain:** Solo un hash (commitment) del batch en Stellar. No se exponen salarios ni identidades.
+- **Off-chain:** Datos completos cifrados en `data/payroll-store/`.
+- **Dispersión:** Mock (SPEI en producción). Los empleados reciben recibo por SMS.
+
 ## 1. Levantar la API
 
 ```bash
@@ -22,23 +28,41 @@ La API queda en `http://localhost:3001` (o la URL de tu despliegue).
 }
 ```
 
-**Formato CSV mínimo:** debe tener columna `amount`. Opcional: `stellar_address`, `phone`, `employee_id`, `date_of_birth`. Si el CSV incluye `phone`, tras la dispersión cada empleado recibe su recibo por SMS (vía Twilio) o en modo DRY_RUN si no hay credenciales Twilio.
+**Formato CSV mínimo:** debe tener columna `amount`. Opcional: `stellar_address`, `phone`, `employee_id`, `date_of_birth`. Si el CSV incluye `phone`, tras la dispersión cada empleado recibe su recibo por SMS (vía Twilio) o en modo DRY_RUN.
 
 **Respuesta exitosa (200):**
 ```json
 {
   "ok": true,
-  "hash": "cc972cc4d7820ba16e911a644aea71c5b0ab1fcccea9865361b12e7beffaefd9",
+  "batchId": "uuid",
+  "commitmentHash": "hex",
+  "hash": "stellar-tx-hash",
+  "txHash": "stellar-tx-hash",
   "total": 5,
   "asset": "USDC",
-  "recipient": "GDW3TZTWH4WBQSNCFNOJEIOSLRXLN3X3ALXVGFHCUOOMOVX7HCT7QNFI",
   "count": 5
 }
 ```
 
 **Health check:** `GET /health` → `{"ok":true,"service":"alebrije-dispersor"}`
 
-## 3. Código para el frontend (nomillar)
+## 3. Auditoría
+
+### Verificación pública (sin datos sensibles)
+
+**GET** `/api/batch/:batchId/verify`
+
+Retorna `{ batchId, commitmentHash, txHash, verified }`. El auditor puede contrastar el commitment on-chain con los datos off-chain.
+
+### Acceso a datos completos (autorizado)
+
+**GET** `/api/batch/:batchId`
+
+Requiere `Authorization: Bearer <AUDITOR_TOKEN>` o header `X-Auditor-Key: <AUDITOR_TOKEN>`.
+
+Retorna el batch desencriptado (rows, total, asset, etc.) solo para auditores autorizados.
+
+## 4. Código para el frontend (nomillar)
 
 ```javascript
 // Ejemplo: React/Next.js
@@ -54,17 +78,10 @@ async function dispersarNomina(csvText) {
 }
 ```
 
-## 4. Desplegar la API
+## 5. Desplegar la API
 
-Para que nomillar.vercel.app la consuma, despliega la API en:
-
-- **Railway**: `railway up` o conecta el repo
-- **Render**: crea Web Service, build `npm install`, start `npm run api`
-- **Fly.io**: `fly launch` + `fly deploy`
-
-Configura las variables de entorno en el proveedor:
-- `ADMIN_SECRET_KEY` (obligatorio)
-- `ASSET_CODE` (opcional, default USDC)
-- `EMPLOYEE_PUBLIC_KEY` (opcional, para destino por defecto)
-
-Luego actualiza en el frontend la URL base de la API.
+- **Railway, Render, Fly.io:** build `npm install`, start `npm run api`
+- **Variables de entorno obligatorias:**
+  - `ADMIN_SECRET_KEY` (Stellar)
+  - `PAYROLL_STORE_KEY` (min 32 caracteres para cifrado)
+- **Opcionales:** `ASSET_CODE`, `AUDITOR_TOKEN`, `RECEIPT_DRY_RUN`

@@ -14,9 +14,10 @@ async function main() {
 
   const result = await dispersarDesdeCsv(csvContent);
 
-  console.log(`  Hash: ${result.hash}`);
-  console.log(`  Destino: ${result.recipient}`);
-  console.log(`\n✅ Dispersión completada. ${result.count} pagos, ${result.total} ${result.asset}`);
+  console.log(`  Batch: ${result.batchId}`);
+  console.log(`  TxHash: ${result.txHash}`);
+  console.log(`  Commitment: ${result.commitmentHash.slice(0, 16)}...`);
+  console.log(`\n✅ Dispersión LFPDP completada. ${result.count} pagos, ${result.total} ${result.asset}`);
 }
 
 main().catch((err) => {
