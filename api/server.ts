@@ -19,6 +19,11 @@ import { verifyCommitment } from "../alebrije-flow/src/commitment";
 
 const PORT = parseInt(process.env.API_PORT ?? "3001", 10);
 const AUDITOR_TOKEN = process.env.AUDITOR_TOKEN;
+const STELLAR_EXPERT_TESTNET = "https://stellar.expert/explorer/testnet/tx";
+
+function txExplorerUrl(txHash: string | null): string | null {
+  return txHash ? `${STELLAR_EXPERT_TESTNET}/${txHash}` : null;
+}
 const CORS_ORIGINS = [
   "https://nomillar.vercel.app",
   "http://localhost:3000",
@@ -78,6 +83,7 @@ const server = createServer(async (req, res) => {
           commitmentHash: result.commitmentHash,
           hash: result.hash,
           txHash: result.txHash,
+          txExplorerUrl: txExplorerUrl(result.txHash),
           total: result.total,
           asset: result.asset,
           count: result.count,
@@ -115,6 +121,7 @@ const server = createServer(async (req, res) => {
         batchId,
         commitmentHash: batch.commitmentHash,
         txHash: batch.txHash,
+        txExplorerUrl: txExplorerUrl(batch.txHash),
         verified,
       })
     );
@@ -138,7 +145,12 @@ const server = createServer(async (req, res) => {
       return;
     }
     res.writeHead(200, headers);
-    res.end(JSON.stringify(batch));
+    res.end(
+      JSON.stringify({
+        ...batch,
+        txExplorerUrl: txExplorerUrl(batch.txHash),
+      })
+    );
     return;
   }
 

@@ -38,11 +38,14 @@ La API queda en `http://localhost:3001` (o la URL de tu despliegue).
   "commitmentHash": "hex",
   "hash": "stellar-tx-hash",
   "txHash": "stellar-tx-hash",
+  "txExplorerUrl": "https://stellar.expert/explorer/testnet/tx/<txHash>",
   "total": 5,
   "asset": "USDC",
   "count": 5
 }
 ```
+
+Usar `txExplorerUrl` como enlace clickeable hacia Stellar Expert (testnet).
 
 **Health check:** `GET /health` → `{"ok":true,"service":"alebrije-dispersor"}`
 
@@ -76,6 +79,14 @@ async function dispersarNomina(csvText) {
   if (!res.ok) throw new Error(data.error ?? "Error en dispersión");
   return data;
 }
+
+// Mostrar txHash como enlace a Stellar Expert (tras éxito)
+// JSX:
+{data.txExplorerUrl && (
+  <a href={data.txExplorerUrl} target="_blank" rel="noopener noreferrer">
+    Ver transacción en Stellar Expert ↗
+  </a>
+)}
 ```
 
 ## 5. Desplegar la API
